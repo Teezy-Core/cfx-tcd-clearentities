@@ -24,8 +24,8 @@ RegisterNUICallback('exit', function(_, cb)
 end)
 
 RegisterNUICallback('clearEntities', function(data, cb)
-    local results = EntityManager.clearEntities(data.type, Config)
-    Utils.sendReactMessage('clearResult', { results = results })
+    -- Instead of clearing locally, send request to server
+    TriggerServerEvent('cfx-tcd-clearentities:serverClearEntities', data.type)
     cb({ success = true })
 end)
 
@@ -118,4 +118,24 @@ Citizen.CreateThread(function()
 
     Wait(1000)
     Utils.sendReactMessage('setShowPriorityStatus', { visible = true })
+end)
+
+-- Add handlers for server-triggered entity deletion
+RegisterNetEvent('cfx-tcd-clearentities:deleteEntitiesOnClient')
+AddEventHandler('cfx-tcd-clearentities:deleteEntitiesOnClient', function()
+    local results = EntityManager.clearEntities('all', Config)
+    Utils.sendReactMessage('clearResult', { results = results })
+end)
+
+RegisterNetEvent('cfx-tcd-clearentities:deleteEntityTypeOnClient')
+AddEventHandler('cfx-tcd-clearentities:deleteEntityTypeOnClient', function(entityType)
+    local results = EntityManager.clearEntities(entityType, Config)
+    Utils.sendReactMessage('clearResult', { results = results })
+end)
+
+RegisterNetEvent('cfx-tcd-clearentities:clearResult')
+AddEventHandler('cfx-tcd-clearentities:clearResult', function(result)
+    -- Refresh entity counts after server-side clearing
+    local results = EntityManager.getAllEntityCounts(Config)
+    Utils.sendReactMessage('clearResult', { results = results })
 end)

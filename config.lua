@@ -5,7 +5,7 @@ Config = {}
 ░█░ ██▄ ██▄ █▄ ░█░   █▄▄ █▄█ █▀▄ ██▄   █▄▀ ██▄ ▀▄▀ ██▄ █▄▄ █▄█ █▀▀ █░▀░█ ██▄ █░▀█ ░█░
 ]]
 
-Config.debugMode = false
+Config.debugMode = true
 
 Config.permissions = {
     'command',

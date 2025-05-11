@@ -52,31 +52,6 @@ function AutoClearManager.scheduleNextClear(config)
     AutoClearManager.status.enabled = true
     AutoClearManager.status.nextClearTimestamp = nextScheduledClear
     AutoClearManager.status.lastUpdateTime = currentTime
-
-    AutoClearManager.timers.clearTimer = SetTimeout(intervalMs, function()
-        if not AutoClearManager.config.enabled then return end
-
-        local results = EntityManager.clearEntities('all', config)
-
-        Utils.sendReactMessage('clearResult', { results = results })
-
-        Config.globalNotify('System', 'All world entities have been cleared.', 5000)
-
-        if AutoClearManager.config.enabled then
-            AutoClearManager.scheduleNextClear(config)
-        end
-    end)
-
-    if AutoClearManager.config.announceSeconds > 0 then
-        local announceTime = intervalMs - (AutoClearManager.config.announceSeconds * 1000)
-        if announceTime > 0 then
-            AutoClearManager.timers.announceTimer = SetTimeout(announceTime, function()
-                if AutoClearManager.config.enabled then
-                    Config.globalNotify('System', 'All world entities will be cleared in ' .. AutoClearManager.config.announceSeconds .. ' seconds.', 5000)
-                end
-            end)
-        end
-    end
     
     local formattedTime = Utils.formatTimeLeft(intervalMs)
     AutoClearManager.status.formattedTimeLeft = formattedTime
