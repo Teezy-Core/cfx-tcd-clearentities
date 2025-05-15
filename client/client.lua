@@ -120,7 +120,6 @@ Citizen.CreateThread(function()
     Utils.sendReactMessage('setShowPriorityStatus', { visible = true })
 end)
 
--- Add handlers for server-triggered entity deletion
 RegisterNetEvent('cfx-tcd-clearentities:deleteEntitiesOnClient')
 AddEventHandler('cfx-tcd-clearentities:deleteEntitiesOnClient', function()
     local results = EntityManager.clearEntities('all', Config)
@@ -135,7 +134,6 @@ end)
 
 RegisterNetEvent('cfx-tcd-clearentities:clearResult')
 AddEventHandler('cfx-tcd-clearentities:clearResult', function(result)
-    -- Refresh entity counts after server-side clearing
     local results = EntityManager.getAllEntityCounts(Config)
     Utils.sendReactMessage('clearResult', { results = results })
 end)

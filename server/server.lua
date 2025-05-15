@@ -54,6 +54,38 @@ local function saveSettingsToFile(settings)
     return saveSettings
 end
 
+local function scheduleClearEntities(interval)
+    if clearTimer then
+        clearTimer = nil
+    end
+    
+    if not serverSettings.enabled then
+        return
+    end
+    
+    local intervalMs = interval * 60 * 1000
+    
+    clearTimer = SetTimeout(intervalMs, function()
+        if serverSettings.enabled then
+            if serverSettings.announceSeconds > 0 then
+                TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', 'All world entities will be cleared in ' .. serverSettings.announceSeconds .. ' seconds.', 5000)
+                
+                SetTimeout(serverSettings.announceSeconds * 1000, function()
+                    ServerEntityManager.clearAllEntities()
+                    TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', 'All world entities have been cleared.', 5000)
+                    
+                    scheduleClearEntities(serverSettings.intervalMinutes)
+                end)
+            else
+                ServerEntityManager.clearAllEntities()
+                TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', 'All world entities have been cleared.', 5000)
+                
+                scheduleClearEntities(serverSettings.intervalMinutes)
+            end
+        end
+    end)
+end
+
 Citizen.CreateThread(function()
     local loadedSettings = loadSettingsFromFile()
 
@@ -77,6 +109,19 @@ RegisterNetEvent('cfx-tcd-cleanentities:saveAutoClearSettings')
 AddEventHandler('cfx-tcd-cleanentities:saveAutoClearSettings', function(settings)
     local src = source
 
+    local hasPermission = false
+    for _, permission in ipairs(Config.permissions) do
+        if IsPlayerAceAllowed(src, permission) then
+            hasPermission = true
+            break
+        end
+    end
+
+    if not hasPermission then
+        TriggerClientEvent('cfx-tcd-clearentities:globalNotify', src, 'Error', 'You do not have permission to change settings.', 5000)
+        return
+    end
+
     if settings and type(settings) == 'table' then
         local savedSettings = saveSettingsToFile(settings)
 
@@ -88,6 +133,14 @@ AddEventHandler('cfx-tcd-cleanentities:saveAutoClearSettings', function(settings
             "m, Announce: " .. savedSettings.announceSeconds .. "s")
     else
         print("[TCD] Invalid settings object received from source " .. src)
+    end
+
+    if clearTimer then
+        clearTimer = nil
+    end
+    
+    if serverSettings.enabled then
+        scheduleClearEntities(serverSettings.intervalMinutes)
     end
 end)
 
@@ -121,18 +174,7 @@ AddEventHandler('cfx-tcd-cleanentities:checkAdminPermissions', function(playerId
         end
     end
 
-    local frameworkAdmin = false
-
-    local QBCore = exports['qb-core']:GetCoreObject()
-    if QBCore then
-        local Player = QBCore.Functions.GetPlayer(source)
-        if Player then
-            frameworkAdmin = Player.PlayerData.admin or Player.PlayerData.group == 'admin' or
-            Player.PlayerData.group == 'god'
-        end
-    end
-
-    TriggerClientEvent('cfx-tcd-cleanentities:adminPermissionsResult', source, hasAcePermission, frameworkAdmin)
+    TriggerClientEvent('cfx-tcd-cleanentities:adminPermissionsResult', source, hasAcePermission, false)
 end)
 
 AddEventHandler('playerDropped', function()
@@ -148,12 +190,10 @@ if not DoesFileExist then
     end
 end
 
--- Add server-side events for clearing entities
 RegisterNetEvent('cfx-tcd-clearentities:serverClearEntities')
 AddEventHandler('cfx-tcd-clearentities:serverClearEntities', function(entityType)
     local src = source
     
-    -- Check if source has admin permissions
     local hasPermission = false
     for _, permission in ipairs(Config.permissions) do
         if IsPlayerAceAllowed(src, permission) then
@@ -162,76 +202,44 @@ AddEventHandler('cfx-tcd-clearentities:serverClearEntities', function(entityType
         end
     end
     
-    local QBCore = exports['qb-core']:GetCoreObject()
-    local Player = QBCore and QBCore.Functions.GetPlayer(src)
-    local frameworkAdmin = Player and (Player.PlayerData.admin or Player.PlayerData.group == 'admin' or Player.PlayerData.group == 'god')
-    
-    if hasPermission or frameworkAdmin then
+    if hasPermission then
         local result
         if entityType == 'all' then
             result = ServerEntityManager.clearAllEntities()
             
-            -- Broadcast notification to all clients
             TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', 'All world entities have been cleared.', 5000)
         else
             result = ServerEntityManager.clearEntityType(entityType)
             
-            -- Broadcast notification to all clients
             TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', entityType:gsub("^%l", string.upper) .. ' have been cleared.', 5000)
         end
-        
-        -- Return results to the requesting client
+
         TriggerClientEvent('cfx-tcd-clearentities:clearResult', src, result)
     else
-        -- Send permission denied message
         TriggerClientEvent('cfx-tcd-clearentities:globalNotify', src, 'Error', 'You do not have permission to clear entities.', 5000)
     end
 end)
 
--- Server-side auto clearing timer
 local clearTimer = nil
 
-local function scheduleClearEntities(interval)
-    if clearTimer then
-        clearTimer = nil
-    end
-    
-    if not serverSettings.enabled then
-        return
-    end
-    
-    local intervalMs = interval * 60 * 1000
-    
-    clearTimer = SetTimeout(intervalMs, function()
-        if serverSettings.enabled then
-            -- Announce entity clearing if configured
-            if serverSettings.announceSeconds > 0 then
-                TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', 'All world entities will be cleared in ' .. serverSettings.announceSeconds .. ' seconds.', 5000)
-                
-                -- Wait for announcement time before clearing
-                SetTimeout(serverSettings.announceSeconds * 1000, function()
-                    ServerEntityManager.clearAllEntities()
-                    TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', 'All world entities have been cleared.', 5000)
-                    
-                    -- Schedule next clear
-                    scheduleClearEntities(serverSettings.intervalMinutes)
-                end)
-            else
-                -- Clear immediately with no announcement
-                ServerEntityManager.clearAllEntities()
-                TriggerClientEvent('cfx-tcd-clearentities:globalNotify', -1, 'System', 'All world entities have been cleared.', 5000)
-                
-                -- Schedule next clear
-                scheduleClearEntities(serverSettings.intervalMinutes)
-            end
-        end
-    end)
-end
 
--- Apply settings and start the auto clear scheduler
+
 RegisterNetEvent('cfx-tcd-cleanentities:saveAutoClearSettings')
 AddEventHandler('cfx-tcd-cleanentities:saveAutoClearSettings', function(settings)
     local src = source
+
+    local hasPermission = false
+    for _, permission in ipairs(Config.permissions) do
+        if IsPlayerAceAllowed(src, permission) then
+            hasPermission = true
+            break
+        end
+    end
+
+    if not hasPermission then
+        TriggerClientEvent('cfx-tcd-clearentities:globalNotify', src, 'Error', 'You do not have permission to change settings.', 5000)
+        return
+    end
 
     if settings and type(settings) == 'table' then
         local savedSettings = saveSettingsToFile(settings)
@@ -246,7 +254,6 @@ AddEventHandler('cfx-tcd-cleanentities:saveAutoClearSettings', function(settings
         print("[TCD] Invalid settings object received from source " .. src)
     end
 
-    -- At the end of the function, start the scheduler
     if clearTimer then
         clearTimer = nil
     end
@@ -256,7 +263,6 @@ AddEventHandler('cfx-tcd-cleanentities:saveAutoClearSettings', function(settings
     end
 end)
 
--- Start the auto clear scheduler when resource starts
 Citizen.CreateThread(function()
     local loadedSettings = loadSettingsFromFile()
 
@@ -275,7 +281,6 @@ Citizen.CreateThread(function()
         ", Interval: " .. serverSettings.intervalMinutes ..
         "m, Announce: " .. serverSettings.announceSeconds .. "s")
 
-    -- At the end of the thread, start the scheduler
     if serverSettings.enabled then
         scheduleClearEntities(serverSettings.intervalMinutes)
     end
